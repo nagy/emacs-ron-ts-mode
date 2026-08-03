@@ -88,6 +88,25 @@ Handles both singleton faces and lists (multiple rules applied)."
     (font-lock-ensure)
     (should (member 'font-lock-constant-face (ron-ts-mode-test--face-at "Dark")))))
 
+(ert-deftest ron-ts-mode-font-lock-negative-number ()
+  "Negative numbers get negation-char-face (whole node, not just the -)."
+  (skip-unless (treesit-ready-p 'ron))
+  (ron-ts-mode-test--with-ron-buffer "Position(x: -2, y: 3)\n"
+    (font-lock-ensure)
+    ;; -2 is one `negative' node -> negation-char on both chars
+    (should (member 'font-lock-negation-char-face
+                    (ron-ts-mode-test--face-at "-2")))
+    ;; whole node has it, including the digits
+    (goto-char (point-min))
+    (search-forward "-2" nil t)
+    (goto-char (1+ (match-beginning 0)))
+    (should (member 'font-lock-negation-char-face
+                    (let ((f (get-text-property (point) 'face)))
+                      (if (listp f) f (list f)))))
+    ;; positive numbers still number-face
+    (should (member 'font-lock-number-face
+                    (ron-ts-mode-test--face-at "3")))))
+
 ;;; Font-lock: verify rules compile and don't error
 
 (ert-deftest ron-ts-mode-font-lock-rules-compile ()

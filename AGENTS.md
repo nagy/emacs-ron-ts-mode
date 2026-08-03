@@ -96,7 +96,7 @@ the singleton and list cases.
 Remaining items from the original audit (items 1, 3, 4, 6 — the bundled
 highlights transcription, dead font-lock patterns, the boolean→keyword
 deviation, and Imenu — are fixed; see commit history and the test suite).
-All 16 tests currently pass.
+All 17 tests currently pass.
 
 ### 1. `:source` is currently a no-op in this build
 
@@ -107,14 +107,16 @@ the fact that the font-lock base is now provided by the `highlights` feature
 in `ron-ts-mode--font-lock-rules`, the mode's "grammar ships queries, so we
 get them for free" assumption doesn't hold.
 
-### 2. `negative` font-lock rule only colors the minus sign
+### 2. ~~`negative` font-lock rule~~ RESOLVED
 
-`(negative) @font-lock-negation-char-face` colors only the `-` in `-2`; the
-digits are a separate `integer` node. The `highlights` feature maps `integer`
-→ number-face, so the digits after `-` are colored number but the `-` itself
-is negation-char. Decide if that's acceptable.
+The original audit claimed `(negative) @font-lock-negation-char-face` colors
+only the `-` in `-2`. That was true pre-fix (when `integer` had no face), but
+now the `negative` node spans the **whole** `-2`, so both chars get
+`font-lock-negation-char-face`. This is the intended use of that face (its
+docstring: "highlight easy to overlook negation"), so the behavior is kept
+and locked in by `ron-ts-mode-font-lock-negative-number`.
 
-### 3. Mode-activation ordering: font-lock is added after `treesit-major-mode-setup`
+### 2. Mode-activation ordering: font-lock is added after `treesit-major-mode-setup`
 
 Body runs after `(treesit-generic-mode-setup lang)` (which only sets up
 `treesit-font-lock-settings` from the never-loaded query), and
@@ -126,7 +128,7 @@ query is ever loaded through the generic mode's path,
 `treesit-merge-font-lock-feature-list` reordering in the body may not be what
 you want. Re-verify after any change to how `highlights.scm` is loaded.
 
-### 4. Indentation works but is overly rigid and duplicates the grammar's `indents.scm`
+### 3. Indentation works but is overly rigid and duplicates the grammar's `indents.scm`
 
 The grammar ships `indents.scm` (array/map/tuple/struct + branch delimiters).
 The mode's `ron-ts-mode--indent-rules` hard-codes `parent-bol` + offset 4 for
@@ -143,7 +145,7 @@ The wrapped-value case (field value on its own line) is now covered by
 `treesit-simple-indent-rules` from the bundled query (or vendor it), and keep
 the Elisp rules only as a fallback.
 
-### 5. `map_entry` only matches `enum_variant`-wrapped keys — inline table keys are a syntax error
+### 4. `map_entry` only matches `enum_variant`-wrapped keys — inline table keys are a syntax error
 
 Verified: in `{ "a": 1, b: -2 }`, the grammar emits
 `map_entry ("a" : 1)` and `ERROR (b: -2)`. Quoted keys parse; bare
@@ -151,15 +153,15 @@ identifiers in inline maps are errors. `b` correctly renders as
 `font-lock-warning-face` (the `ERROR` → warning rule in `highlights`). This
 is not a bug in the mode — it's what the grammar does. Documented in code.
 
-### 6. Tests: indent-offset coverage is via `let`, not real use
+### 5. Tests: indent-offset coverage is via `let`, not real use
 
-Face-assertion and Imenu-name tests are in place (14/15 of the suite covers
-font-lock faces, Imenu names, node structure, indentation, comments). The one
-remaining gap: `ron-ts-mode-custom-indent-offset` binds
+Face-assertion, Imenu-name, and negative-number tests are in place (16/17 of
+the suite covers font-lock faces, Imenu names, node structure, indentation,
+comments). The one remaining gap: `ron-ts-mode-custom-indent-offset` binds
 `ron-ts-mode-indent-offset` via `let` rather than `setq-local` on a real
 file. Consider `ert-with-temp-file` + `setq-local` to be closer to real use.
 
-### 7. Misc
+### 6. Misc
 
 - `ron-ts-mode--font-lock-rules` uses `:override t` only on `ron-keyword`
   and `ron-field` (the deliberate deviations), not on `highlights` — this
@@ -175,9 +177,10 @@ file. Consider `ert-with-temp-file` + `setq-local` to be closer to real use.
 
 1. Indentation: wrapped-struct-field-value test DONE
    (`ron-ts-mode-indent-wrapped-value`); remaining gap is `map_entry` value
-   on a new line (item 4).
-2. Decide on the `negative` sign coloring (item 2) — trivial decision.
+   on a new line (item 3).
+2. `negative` sign coloring RESOLVED (item 2) — kept negation-char, locked
+   in by `ron-ts-mode-font-lock-negative-number`.
 3. `:source`/`:copy-queries` Nix wiring (item 1) — build-level, slow to
    iterate; lower priority now that `highlights` is embedded.
-4. Re-verify mode-activation ordering (item 3) if `highlights.scm` loading
+4. Re-verify mode-activation ordering (item 2) if `highlights.scm` loading
    ever changes.
