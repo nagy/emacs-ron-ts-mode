@@ -96,7 +96,7 @@ the singleton and list cases.
 Remaining items from the original audit (items 1, 3, 4, 6 — the bundled
 highlights transcription, dead font-lock patterns, the boolean→keyword
 deviation, and Imenu — are fixed; see commit history and the test suite).
-All 15 tests currently pass.
+All 16 tests currently pass.
 
 ### 1. `:source` is currently a no-op in this build
 
@@ -135,10 +135,13 @@ handle multiline expressions well (e.g. a long `struct_entry` value spanning
 lines, or `map_entry` with value on the next line). The `map_entry` rule is a
 heuristic that excludes `:`/`,` but doesn't cover `value` on a new line.
 
+The wrapped-value case (field value on its own line) is now covered by
+`ron-ts-mode-indent-wrapped-value` and passes. The remaining gap is
+`map_entry` with the value on a new line.
+
 **Recommendation:** consider loading the grammar's `indents.scm` via
 `treesit-simple-indent-rules` from the bundled query (or vendor it), and keep
-the Elisp rules only as a fallback. At minimum add a test with a wrapped
-struct field value.
+the Elisp rules only as a fallback.
 
 ### 5. `map_entry` only matches `enum_variant`-wrapped keys — inline table keys are a syntax error
 
@@ -170,8 +173,9 @@ file. Consider `ert-with-temp-file` + `setq-local` to be closer to real use.
 
 ### Priority order
 
-1. Indentation: add a wrapped-struct-field-value test (item 4) — test-only,
-   locks in current behavior.
+1. Indentation: wrapped-struct-field-value test DONE
+   (`ron-ts-mode-indent-wrapped-value`); remaining gap is `map_entry` value
+   on a new line (item 4).
 2. Decide on the `negative` sign coloring (item 2) — trivial decision.
 3. `:source`/`:copy-queries` Nix wiring (item 1) — build-level, slow to
    iterate; lower priority now that `highlights` is embedded.
