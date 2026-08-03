@@ -131,27 +131,29 @@ other two are mode-specific supplements and deviations.")
 
 ;; ── Imenu ──────────────────────────────────────────────────────────
 
+(defun ron-ts-mode--imenu-struct-name (node)
+  "Return the name of a `struct' NODE (its struct_name), or nil."
+  (when (string= (treesit-node-type node) "struct")
+    (let ((c (treesit-node-child node 0 t)))
+      (when (and c (string= (treesit-node-type c) "struct_name"))
+        (treesit-node-text c t)))))
+
+(defun ron-ts-mode--imenu-enum-name (node)
+  "Return the name of an `enum_variant' NODE (its identifier), or nil."
+  (when (string= (treesit-node-type node) "enum_variant")
+    (let ((c (treesit-node-child node 0 t)))
+      (when c (treesit-node-text c t)))))
+
 (defvar ron-ts-mode--imenu-settings
-  `(("Structs"
-     ,(rx bos (or "struct" "map_entry" "struct_entry") eos)
-     ron-ts-mode--imenu-name-prev-sibling nil)
-    ("Enums"
-     ,(rx bos "enum_variant" eos)
-     (lambda (node)
-       (treesit-node-text
-        (treesit-node-prev-sibling node)
-        t))
-     nil))
-  "Imenu settings for RON.")
-
-(declare-function treesit-node-prev-sibling "treesit.c")
-
-(defun ron-ts-mode--imenu-name-prev-sibling (node)
-  "Return the text of NODE's previous sibling.
-Used by Imenu for struct entries where the field name is the
-preceding identifier sibling."
-  (when-let* ((prev (treesit-node-prev-sibling node)))
-    (treesit-node-text prev t)))
+  `(("Structs" "struct"
+     ron-ts-mode--imenu-struct-name ron-ts-mode--imenu-struct-name)
+    ("Enums" "enum_variant"
+     ron-ts-mode--imenu-enum-name ron-ts-mode--imenu-enum-name))
+  "Imenu settings for RON.
+Uses node-type regexes without anchors: `treesit-induce-sparse-tree'
+matches them against node types, and the preds filter out nodes without
+a name (every RON value is a `struct', so the pred keeps only named ones).
+The sparse tree naturally nests nested structs under their parents.")
 
 ;; ── Mode definition ────────────────────────────────────────────────
 

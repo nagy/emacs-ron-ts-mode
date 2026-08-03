@@ -176,6 +176,32 @@ Handles both singleton faces and lists (multiple rules applied)."
     (should (consp treesit-simple-imenu-settings))
     (should (>= (length treesit-simple-imenu-settings) 2))))
 
+(defun ron-ts-mode-test--flatten-imenu (entries)
+  "Flatten Imenu ENTRIES into a list of names.
+Nested entries are (NAME MARKER CHILDREN...) or (NAME . MARKER)."
+  (cl-loop for e in entries
+           append (cons (car e)
+                        (when (consp (cdr e))
+                          (ron-ts-mode-test--flatten-imenu (cddr e))))))
+
+(ert-deftest ron-ts-mode-imenu-names ()
+  "Imenu returns struct/enum names, not punctuation."
+  (skip-unless (treesit-ready-p 'ron))
+  (ron-ts-mode-test--with-ron-buffer
+      "Config(\n    window_size: (1920, 1080),\n    fullscreen: false,\n)\n\nShape(\n    Rectangle(\n        width: 10,\n    ),\n)\n\nDark\n"
+    (let* ((idx (treesit-simple-imenu))
+           (structs (cdr (assoc "Structs" idx)))
+           (enums (cdr (assoc "Enums" idx))))
+      ;; Struct names, no punctuation
+      (should (equal (sort (ron-ts-mode-test--flatten-imenu structs) #'string-lessp)
+                     '("Config" "Rectangle" "Shape")))
+      ;; Enum names
+      (should (equal (sort (ron-ts-mode-test--flatten-imenu enums) #'string-lessp)
+                     '("Dark")))
+      ;; No punctuation anywhere
+      (should-not (cl-some (lambda (e) (string-match-p "[(),]" e))
+                           (ron-ts-mode-test--flatten-imenu (append structs enums)))))))
+
 ;;; Enum variant handling
 
 (ert-deftest ron-ts-mode-parses-enum-variant ()

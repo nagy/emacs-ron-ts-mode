@@ -91,86 +91,42 @@ Face assertion tests check `get-text-property` at known positions. Some face
 results come back as lists when multiple rules apply; the tests handle both
 the singleton and list cases.
 
-## General recommendations (audited 2026-08, Emacs 31.0.91 + tree-sitter-ron 0.2.0)
+## Open recommendations (audited 2026-08, Emacs 31.0.91 + tree-sitter-ron 0.2.0)
 
-These were verified by running the mode and the grammar in this repo's own
-Nix environment. All 11 tests currently pass.
+Remaining items from the original audit (items 1, 3, 4, 6 — the bundled
+highlights transcription, dead font-lock patterns, the boolean→keyword
+deviation, and Imenu — are fixed; see commit history and the test suite).
+All 15 tests currently pass.
 
-### 1. ~~The bundled `highlights.scm` is never loaded~~ DONE
-
-**Fixed:** the bundled query is now transcribed as the `highlights` feature in
-`ron-ts-mode--font-lock-rules` (see "Core design" above), so numbers,
-strings, enum variants, escapes, punctuation, and comments all get faces
-without relying on the generic mode's `~/.emacs.d` lookup. The old
-`ron-supplement` feature is gone.
-
-### 2. `:source` is currently a no-op in this build
+### 1. `:source` is currently a no-op in this build
 
 The generic mode appends `(ron . ("URL" :copy-queries t))` to
 `treesit-language-source-alist`, but with `:copy-queries` unset the queries
 never land where `treesit-generic-mode-font-lock-query` looks. Combined with
-(1), the mode's "grammar ships queries, so we get them for free" assumption
-doesn't hold.
+the fact that the font-lock base is now provided by the `highlights` feature
+in `ron-ts-mode--font-lock-rules`, the mode's "grammar ships queries, so we
+get them for free" assumption doesn't hold.
 
-### 3. ~~The font-lock `ron-supplement` rules contain dead/broken patterns~~ DONE
+### 2. `negative` font-lock rule only colors the minus sign
 
-**Fixed:** `ron-supplement` was replaced by `highlights` (transcribed bundled
-query) + `ron-field`. Correction to the original audit: the claim that
-`(struct_entry (identifier))` matches nothing was **wrong** — struct entries
-use a bare `identifier` child, so the pattern works. The actual asymmetry is:
-structs use bare `identifier`, maps use `enum_variant`-wrapped identifiers.
-`enum_variant` is no longer shadowed (it's constant from `highlights`, and
-`ron-keyword` only re-maps `boolean`, not `enum_variant`).
+`(negative) @font-lock-negation-char-face` colors only the `-` in `-2`; the
+digits are a separate `integer` node. The `highlights` feature maps `integer`
+→ number-face, so the digits after `-` are colored number but the `-` itself
+is negation-char. Decide if that's acceptable.
 
-### 4. ~~`ron-keyword` (boolean → keyword) fights the grammar's own `@boolean` mapping~~ DONE
-
-**Fixed:** the deviation is now documented in a comment right above
-`ron-keyword`. `boolean` → keyword-face with `:override t` is intentional;
-`enum_variant` is no longer affected (it's covered by `highlights` and not
-re-mapped).
-
-### 5. `negative` font-lock rule only colors the minus sign
-
-Still open. `(negative) @font-lock-negation-char-face` colors only the `-` in
-`-2`; the digits are a separate `integer` node. Now that `highlights` maps
-`integer` → number-face, the digits after `-` are colored number but the `-`
-itself is negation-char. Decide if that's acceptable.
-
-### 6. Imenu is effectively broken
-
-`ron-ts-mode--imenu-name-prev-sibling` reads the **previous sibling**, but in
-this grammar the name is the *previous sibling's previous sibling* (or the
-field's `struct_name`):
-- `struct_entry "window_size: ..."` → prev sibling is `"("` → Imenu entry
-  is `"("`.
-- `enum_variant "A"` → prev sibling is `"("`; `"B"` → `","` — the
-  `ron-ts-mode--imenu-name-prev-sibling` lambda returns these punctuation
-  strings as names.
-- The `Structs` regex `(or "struct" "map_entry" "struct_entry")` also
-  matches every `struct` node (every RON value is a `struct`), so Imenu would
-  be full of `(`, `,`, and giant struct texts.
-
-The tests only assert `treesit-simple-imenu-settings` is non-nil — they never
-exercise the name functions, so this is untested behavior.
-
-**Recommendation:** name function should be: for a `struct`/`struct_entry`/`map_entry`
-node, take the first named child (or `struct_name`); for `enum_variant` inside
-a tuple, take the `struct_name` of the enclosing struct. Add a test that
-actually runs `imenu--make-index-alist` (or calls the name function directly)
-on a small buffer and checks the returned names are the field/enum names.
-
-### 7. Mode-activation ordering: font-lock is added after `treesit-major-mode-setup`
+### 3. Mode-activation ordering: font-lock is added after `treesit-major-mode-setup`
 
 Body runs after `(treesit-generic-mode-setup lang)` (which only sets up
 `treesit-font-lock-settings` from the never-loaded query), and
 `treesit-add-font-lock-rules` + `font-lock-flush` in the body run **before**
 `treesit-major-mode-setup`. This works today but is fragile: if the bundled
-query is loaded (per (1)), `treesit-major-mode-setup` will build
-`font-lock-keywords` from `treesit-font-lock-feature-list` at that point, and
-the `treesit-merge-font-lock-feature-list` reordering in the body may not be
-what you want. Re-verify after fixing (1).
+query is ever loaded through the generic mode's path,
+`treesit-major-mode-setup` will build `font-lock-keywords` from
+`treesit-font-lock-feature-list` at that point, and the
+`treesit-merge-font-lock-feature-list` reordering in the body may not be what
+you want. Re-verify after any change to how `highlights.scm` is loaded.
 
-### 8. Indentation works but is overly rigid and duplicates the grammar's `indents.scm`
+### 4. Indentation works but is overly rigid and duplicates the grammar's `indents.scm`
 
 The grammar ships `indents.scm` (array/map/tuple/struct + branch delimiters).
 The mode's `ron-ts-mode--indent-rules` hard-codes `parent-bol` + offset 4 for
@@ -184,36 +140,27 @@ heuristic that excludes `:`/`,` but doesn't cover `value` on a new line.
 the Elisp rules only as a fallback. At minimum add a test with a wrapped
 struct field value.
 
-### 9. `map_entry` only matches `enum_variant`-wrapped keys — inline table keys are a syntax error
+### 5. `map_entry` only matches `enum_variant`-wrapped keys — inline table keys are a syntax error
 
 Verified: in `{ "a": 1, b: -2 }`, the grammar emits
 `map_entry ("a" : 1)` and `ERROR (b: -2)`. Quoted keys parse; bare
-identifiers in inline maps are errors. `b` now correctly renders as
+identifiers in inline maps are errors. `b` correctly renders as
 `font-lock-warning-face` (the `ERROR` → warning rule in `highlights`). This
 is not a bug in the mode — it's what the grammar does. Documented in code.
 
-### 10. Tests don't cover the real failure modes
+### 6. Tests: indent-offset coverage is via `let`, not real use
 
-The test suite only checks: mode activates, parser exists, rules compile,
-specific node types exist, indentation on simple cases, comment syntax,
-imenu settings installed. It never checks:
-- that numbers/strings actually get a face (**now fixed** — they do, via
-  `highlights`; add an assertion test to lock it in)
-- that enum variants render as constant (now constant from `highlights` —
-  add an assertion test)
-- that Imenu names are correct (they're punctuation, see (6))
-- `ron-ts-mode-indent-offset` changes (covered, but only via `let` binding —
-  consider `ert-with-temp-file` + `setq-local` to be closer to real use)
+Face-assertion and Imenu-name tests are in place (14/15 of the suite covers
+font-lock faces, Imenu names, node structure, indentation, comments). The one
+remaining gap: `ron-ts-mode-custom-indent-offset` binds
+`ron-ts-mode-indent-offset` via `let` rather than `setq-local` on a real
+file. Consider `ert-with-temp-file` + `setq-local` to be closer to real use.
 
-**Recommendation:** add face-assertion tests for number/string/enum faces
-(they now pass — lock them in), and Imenu-name tests. See
-`ron-ts-mode-tests.el` for the current `get-text-property` pattern.
+### 7. Misc
 
-### 11. Misc
-
-- `ron-ts-mode--font-lock-rules` now uses `:override t` only on
-  `ron-keyword` and `ron-field` (the deliberate deviations), not on
-  `highlights` — this matches the recommendation.
+- `ron-ts-mode--font-lock-rules` uses `:override t` only on `ron-keyword`
+  and `ron-field` (the deliberate deviations), not on `highlights` — this
+  matches the recommendation.
 - `(require 'treesit-x)` is correct (the macro lives there) — keep it.
 - The `:auto-mode "\\.ron\\'"` registration works and is tested implicitly.
 - `Package-Requires: ((emacs "30.1"))` vs. `define-treesit-generic-mode`
@@ -223,8 +170,10 @@ imenu settings installed. It never checks:
 
 ### Priority order
 
-1. ~~Vendor/load the bundled `highlights.scm`~~ DONE (as the `highlights`
-   feature in `ron-ts-mode--font-lock-rules`)
-2. Fix Imenu name extraction (punctuation names) — next up
-3. ~~Trim dead font-lock patterns~~ DONE (folded into the rewrite)
-4. Add face-assertion tests for numbers/strings/enum faces + Imenu names
+1. Indentation: add a wrapped-struct-field-value test (item 4) — test-only,
+   locks in current behavior.
+2. Decide on the `negative` sign coloring (item 2) — trivial decision.
+3. `:source`/`:copy-queries` Nix wiring (item 1) — build-level, slow to
+   iterate; lower priority now that `highlights` is embedded.
+4. Re-verify mode-activation ordering (item 3) if `highlights.scm` loading
+   ever changes.
