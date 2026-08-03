@@ -170,6 +170,22 @@ Handles both singleton faces and lists (multiple rules applied)."
       (forward-line 1) ;; "        (1920, 1080),"
       (should (= (current-indentation) 8)))))
 
+(ert-deftest ron-ts-mode-indent-map-wrapped-value ()
+  "A map entry value on its own line indents one level deeper."
+  (skip-unless (treesit-ready-p 'ron))
+  (ron-ts-mode-test--with-ron-buffer
+      "{\n    key:\n        1,\n}\n"
+    (let ((ron-ts-mode-indent-offset 4))
+      (goto-char (point-min))
+      (forward-line 1) ;; "    key:"
+      (should (= (current-indentation) 4))
+      (forward-line 1) ;; "        1,"
+      (should (= (current-indentation) 8)))
+    ;; closing brace aligns to column 0
+    (goto-char (point-min))
+    (forward-line 3)
+    (should (= (current-indentation) 0))))
+
 (ert-deftest ron-ts-mode-indent-map ()
   "Map bodies indent correctly."
   (skip-unless (treesit-ready-p 'ron))
