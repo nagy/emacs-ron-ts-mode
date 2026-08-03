@@ -51,6 +51,43 @@
   (ron-ts-mode-test--with-ron-buffer "// comment\n"
     (should (treesit-parser-list))))
 
+;;; Font-lock: face assertions
+
+(defun ron-ts-mode-test--face-at (word)
+  "Return the face text-property at WORD's position in current buffer.
+Handles both singleton faces and lists (multiple rules applied)."
+  (save-excursion
+    (goto-char (point-min))
+    (when (search-forward word nil t)
+      (let ((f (get-text-property (match-beginning 0) 'face)))
+        (if (listp f) f (list f))))))
+
+(ert-deftest ron-ts-mode-font-lock-numbers-and-strings ()
+  "Numbers and strings get faces from the transcribed highlights feature."
+  (skip-unless (treesit-ready-p 'ron))
+  (ron-ts-mode-test--with-ron-buffer
+      "Position(\n    x: 1920,\n    title: \"Hi\",\n)\n"
+    (font-lock-ensure)
+    (should (member 'font-lock-number-face (ron-ts-mode-test--face-at "1920")))
+    (should (member 'font-lock-string-face (ron-ts-mode-test--face-at "Hi")))))
+
+(ert-deftest ron-ts-mode-font-lock-struct-faces ()
+  "Struct names, field names, booleans get faces."
+  (skip-unless (treesit-ready-p 'ron))
+  (ron-ts-mode-test--with-ron-buffer
+      "Position(\n    fullscreen: true,\n)\n"
+    (font-lock-ensure)
+    (should (member 'font-lock-type-face (ron-ts-mode-test--face-at "Position")))
+    (should (member 'font-lock-property-name-face (ron-ts-mode-test--face-at "fullscreen")))
+    (should (member 'font-lock-keyword-face (ron-ts-mode-test--face-at "true")))))
+
+(ert-deftest ron-ts-mode-font-lock-enum-variant-constant ()
+  "Bare enum variants render as constant (not keyword)."
+  (skip-unless (treesit-ready-p 'ron))
+  (ron-ts-mode-test--with-ron-buffer "Dark\n"
+    (font-lock-ensure)
+    (should (member 'font-lock-constant-face (ron-ts-mode-test--face-at "Dark")))))
+
 ;;; Font-lock: verify rules compile and don't error
 
 (ert-deftest ron-ts-mode-font-lock-rules-compile ()
