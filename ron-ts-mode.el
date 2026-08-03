@@ -62,36 +62,53 @@
   :type 'integer
   :safe 'integerp)
 
-;; ── Font-lock supplements ──────────────────────────────────────────
+;; ── Font-lock ──────────────────────────────────────────────────────
 
 (defvar ron-ts-mode--font-lock-rules
+  ;; The grammar's bundled highlights.scm, transcribed as a real feature.
+  ;; We do NOT rely on `define-treesit-generic-mode' loading it: that only
+  ;; looks in ~/.emacs.d/tree-sitter/queries/<lang>/, which is empty in
+  ;; typical installs (see AGENTS.md).  Capture names are converted to their
+  ;; treesit-x face counterparts (@constant → font-lock-constant-face, etc.).
   (treesit-font-lock-rules
    :language 'ron
-   :override t
-   :feature 'ron-supplement
+   :feature 'highlights
    '((enum_variant) @font-lock-constant-face
-     (struct_name) @font-lock-type-face
+     (struct_entry (enum_variant (identifier) @font-lock-constant-face))
+     (struct_name (identifier)) @font-lock-type-face
      (unit_struct) @font-lock-builtin-face
+     (string) @font-lock-string-face
+     (boolean) @font-lock-constant-face
+     (integer) @font-lock-number-face
+     (float) @font-lock-number-face
      (char) @font-lock-constant-face
      (escape_sequence) @font-lock-escape-face
-     ;; Punctuation the generic mapping doesn't cover
+     ([ (line_comment) (block_comment) ] @font-lock-comment-face)
+     ([ "{" "}" ] @font-lock-bracket-face)
      ([ "(" ")" ] @font-lock-bracket-face)
      ([ "[" "]" ] @font-lock-bracket-face)
-     ([ "{" "}" ] @font-lock-bracket-face)
      ([ "," ":" ] @font-lock-delimiter-face)
-     ;; Struct/map field names
-     (struct_entry (identifier) @font-lock-property-name-face)
-     ;; Map keys are always enum_variant in this grammar
-     (map_entry (enum_variant (identifier) @font-lock-property-name-face)))
+     ([ "-" ] @font-lock-operator-face)
+     (ERROR) @font-lock-warning-face)
 
+   ;; Deliberate deviation from upstream: upstream maps boolean → constant;
+   ;; we prefer keyword-face.  Applied later with :override t so it wins.
    :language 'ron
    :override t
    :feature 'ron-keyword
    '((boolean) @font-lock-keyword-face
-     (negative) @font-lock-negation-char-face))
-  "Supplemental tree-sitter font-lock rules for RON.
-Added on top of the grammar's bundled highlights.scm query which
-is loaded automatically by `define-treesit-generic-mode'.")
+     (negative) @font-lock-negation-char-face)
+
+   ;; Field names: struct fields use a bare identifier child; map keys are
+   ;; wrapped in enum_variant (bare identifiers in maps are parse errors).
+   :language 'ron
+   :override t
+   :feature 'ron-field
+   '((struct_entry (identifier) @font-lock-property-name-face)
+     (map_entry (enum_variant (identifier) @font-lock-property-name-face))))
+  "Tree-sitter font-lock rules for RON.
+The first feature transcribes the grammar's bundled highlights.scm; the
+other two are mode-specific supplements and deviations.")
 
 ;; ── Indentation ────────────────────────────────────────────────────
 
@@ -166,13 +183,13 @@ This mode provides:
   (setq-local treesit-simple-indent-rules
               ron-ts-mode--indent-rules)
 
-  ;; Font-lock supplements
+  ;; Font-lock
   (when (treesit-ready-p 'ron t)
     (treesit-add-font-lock-rules ron-ts-mode--font-lock-rules)
     (setq-local treesit-font-lock-feature-list
                 (treesit-merge-font-lock-feature-list
                  treesit-font-lock-feature-list
-                 '((ron-supplement ron-keyword))))
+                 '((highlights ron-keyword ron-field))))
     (font-lock-flush))
 
   ;; Imenu
