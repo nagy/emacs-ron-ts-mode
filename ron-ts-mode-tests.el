@@ -186,6 +186,28 @@ Handles both singleton faces and lists (multiple rules applied)."
     (forward-line 3)
     (should (= (current-indentation) 0))))
 
+(ert-deftest ron-ts-mode-indent-engine-unindented ()
+  "The real indent engine indents unindented input correctly.
+Unlike the other indent tests (which read back pre-indented fixtures), this
+inserts column-0 content and runs `indent-region', so it exercises
+`treesit-simple-indent-rules' end to end."
+  (skip-unless (treesit-ready-p 'ron))
+  (ron-ts-mode-test--with-ron-buffer
+      "Config(\nwindow_size:\n(1920, 1080),\nfullscreen: false,\n)\n"
+    (let ((ron-ts-mode-indent-offset 4))
+      (indent-region (point-min) (point-max))
+      (should (equal (buffer-string)
+                     "Config(\n    window_size:\n        (1920, 1080),\n    fullscreen: false,\n)\n")))))
+
+(ert-deftest ron-ts-mode-indent-engine-unindented-map ()
+  "The real indent engine indents an unindented map correctly."
+  (skip-unless (treesit-ready-p 'ron))
+  (ron-ts-mode-test--with-ron-buffer "{\nkey:\n1,\n}\n"
+    (let ((ron-ts-mode-indent-offset 4))
+      (indent-region (point-min) (point-max))
+      (should (equal (buffer-string)
+                     "{\n    key:\n        1,\n}\n")))))
+
 (ert-deftest ron-ts-mode-indent-map ()
   "Map bodies indent correctly."
   (skip-unless (treesit-ready-p 'ron))

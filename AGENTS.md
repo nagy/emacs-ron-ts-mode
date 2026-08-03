@@ -96,7 +96,7 @@ the singleton and list cases.
 Remaining items from the original audit (items 1, 3, 4, 6 — the bundled
 highlights transcription, dead font-lock patterns, the boolean→keyword
 deviation, and Imenu — are fixed; see commit history and the test suite).
-All 18 tests currently pass.
+All 20 tests currently pass.
 
 ### 1. `:source` is currently a no-op in this build
 
@@ -129,9 +129,11 @@ is not a bug in the mode — it's what the grammar does. Documented in code.
 
 ### 4. Tests: indent-offset coverage is via `let`, not real use
 
-Face-assertion, Imenu-name, and negative-number tests are in place (18/18 of
-the suite covers font-lock faces, Imenu names, node structure, indentation,
-comments). The one remaining gap: `ron-ts-mode-custom-indent-offset` binds
+Face-assertion, Imenu-name, negative-number, and engine-driven indent tests
+are in place (20/20 of the suite covers font-lock faces, Imenu names, node
+structure, indentation, comments).
+
+The remaining gap: `ron-ts-mode-custom-indent-offset` binds
 `ron-ts-mode-indent-offset` via `let` rather than `setq-local` on a real
 file. Consider `ert-with-temp-file` + `setq-local` to be closer to real use.
 
@@ -142,16 +144,17 @@ file. Consider `ert-with-temp-file` + `setq-local` to be closer to real use.
   matches the recommendation.
 - `(require 'treesit-x)` is correct (the macro lives there) — keep it.
 - The `:auto-mode "\\.ron\\'"` registration works and is tested implicitly.
-- `Package-Requires: ((emacs "30.1"))` vs. `define-treesit-generic-mode`
-  landing in 31 — double-check the floor; the macro used here is Emacs 31.
+- `Package-Requires: ((emacs "31"))` — matches where
+  `define-treesit-generic-mode` (treesit-x.el) landed. DONE.
 - License is AGPL-3+ while the code mirrors upstream tree-sitter-ron's MIT —
   decide if that matters for redistribution.
 
 ### Priority order
 
-1. Indentation: wrapped-value tests DONE (`ron-ts-mode-indent-wrapped-value`
-   and `ron-ts-mode-indent-map-wrapped-value`); remaining gap is a long
-   `struct_entry` value spanning lines (item 3).
+1. Indentation: wrapped-value and engine-driven indent tests DONE
+   (`ron-ts-mode-indent-wrapped-value`, `-map-wrapped-value`,
+   `-engine-unindented`, `-engine-unindented-map`); the long-multiline case
+   is covered by the engine tests.
 2. `negative` sign coloring RESOLVED (was item 2) — kept negation-char,
    locked in by `ron-ts-mode-font-lock-negative-number`.
 3. `:source`/`:copy-queries` Nix wiring (item 1) — build-level, slow to

@@ -19,7 +19,7 @@
 ;; Author: Daniel Nagy
 ;; Version: 0.1.0
 ;; Keywords: languages, tools
-;; Package-Requires: ((emacs "30.1"))
+;; Package-Requires: ((emacs "31"))
 ;; URL: https://github.com/nagy/ron-ts-mode
 
 ;;; Commentary:
