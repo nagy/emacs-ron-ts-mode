@@ -83,7 +83,34 @@ Run with:
 
     emacs --batch -L . -l ron-ts-mode-tests.el -f ert-run-tests-batch-and-exit
 
-Or via the Nix `checkPhase`.
+Or via Nix (see below).
+
+## Nix packaging
+
+A single `flake.nix` (flake-parts + treefmt-nix) holds all packaging. The
+old `default.nix` deleted; `nix-shell` no longer works — use `nix develop`.
+
+- `packages.default` is a `melpaBuild` derivation built with
+  `pkgs.emacs31.pkgs.withPackages` plus `treesit-grammars.with-all-grammars`,
+  so `treesit-ready-p 'ron` succeeds inside the sandbox. melpaBuild
+  propagates its Emacs, so the installed package closure carries the grammar.
+- `version = "0.1.0-unstable-<YYYY-MM-DD>"` — MELPA converts this to
+  `YYYYMMDD.0` for the installed directory name. Bump the date when source
+  changes; melpaBuild derives it from the version string, not `src.rev`.
+- `checks.default` runs the ERT suite against the installed package, so the
+  check exercises the shipped artifact. `melpaBuild`'s build phase already
+  byte-compiles with `turnCompilationWarningToError = true`.
+- `devShells.default` provides the grammar-enabled Emacs for interactive work.
+  Note `treesit-ready-p` reports nil under plain `emacs -Q`; the nixpkgs
+  wrapper is what adds the grammar path to `treesit-extra-load-path`.
+- `nix fmt` runs nixfmt via treefmt; run it after touching `flake.nix`.
+
+Commands:
+
+    nix build
+    nix flake check
+    nix develop          # replaces nix-shell
+    nix fmt
 
 ## Font-lock face assertions
 
