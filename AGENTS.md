@@ -88,7 +88,8 @@ Or via Nix (see below).
 ## Nix packaging
 
 A single `flake.nix` (flake-parts + treefmt-nix) holds all packaging. The
-old `default.nix` deleted; `nix-shell` no longer works — use `nix develop`.
+old `default.nix` deleted; `nix-shell` no longer works — the dev shell
+comes from `flake.nix`.
 
 - `packages.default` is a `melpaBuild` derivation built with
   `pkgs.emacs31.pkgs.withPackages` plus `treesit-grammars.with-all-grammars`,
