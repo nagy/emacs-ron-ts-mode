@@ -92,15 +92,19 @@ old `default.nix` deleted; `nix-shell` no longer works — the dev shell
 comes from `flake.nix`.
 
 - `packages.default` is a `melpaBuild` derivation built with
-  `pkgs.emacs31.pkgs.withPackages` plus `treesit-grammars.with-all-grammars`,
-  so `treesit-ready-p 'ron` succeeds inside the sandbox. melpaBuild
-  propagates its Emacs, so the installed package closure carries the grammar.
-- `version = "0.1.0-unstable-<YYYY-MM-DD>"` — MELPA converts this to
-  `YYYYMMDD.0` for the installed directory name. Bump the date when source
-  changes; melpaBuild derives it from the version string, not `src.rev`.
+  `pkgs.emacs31.pkgs.withPackages` plus the single ron grammar from
+  `treesit-grammars.with-grammars`, so `treesit-ready-p 'ron` succeeds inside
+  the sandbox. `with-all-grammars` links ~477 parsers (~1.3 GiB); do not use
+  it here. melpaBuild propagates its Emacs, so the installed package closure
+  carries the grammar.
+- `src = self` (the filtered flake source) rather than `lib.cleanSource`.
+- `version = "0-unstable-<YYYY-MM-DD>"` derived from `self.lastModifiedDate`,
+  so no manual bump. melpaBuild converts it to `YYYYMMDD.0` for the installed
+  directory name.
 - `checks.default` runs the ERT suite against the installed package, so the
-  check exercises the shipped artifact. `melpaBuild`'s build phase already
-  byte-compiles with `turnCompilationWarningToError = true`.
+  check exercises the shipped artifact. `pkgs.writableTmpDirAsHomeHook` gives
+  Emacs a writable `$HOME`; do not set `HOME` by hand. `melpaBuild`'s build
+  phase already byte-compiles with `turnCompilationWarningToError = true`.
 - `devShells.default` provides the grammar-enabled Emacs for interactive work.
   Note `treesit-ready-p` reports nil under plain `emacs -Q`; the nixpkgs
   wrapper is what adds the grammar path to `treesit-extra-load-path`.

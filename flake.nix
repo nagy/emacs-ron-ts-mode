@@ -4,7 +4,6 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts";
-    # nixfmt is the house formatter; treefmt-nix wires it into `nix fmt`.
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -13,6 +12,7 @@
 
   outputs =
     inputs@{
+      self,
       flake-parts,
       nixpkgs,
       treefmt-nix,
@@ -39,31 +39,30 @@
         let
           inherit (pkgs.emacsPackages) melpaBuild;
 
-          # The package loads tree-sitter grammars at runtime through
-          # `treesit-language-source-alist`; nixpkgs ships the ron grammar
-          # as an Emacs package, so build with an Emacs that already has
-          # it.  This makes `treesit-ready-p 'ron` succeed in the sandbox.
+          # Nix sets `lastModifiedDate` for git checkouts, so the version
+          # tracks commits.  melpaBuild wants `<version>-unstable-YYYY-MM-DD`.
+          stamp = self.lastModifiedDate or "19700101000000";
+          date =
+            "${builtins.substring 0 4 stamp}-"
+            + "${builtins.substring 4 2 stamp}-"
+            + builtins.substring 6 2 stamp;
+
+          # Grammar in the Emacs closure, so `treesit-ready-p 'ron` succeeds
+          # offline.  `with-all-grammars` would link ~477 parsers (~1.3 GiB).
           emacsWithGrammars = pkgs.emacs31.pkgs.withPackages (epkgs: [
-            epkgs.treesit-grammars.with-all-grammars
+            (epkgs.treesit-grammars.with-grammars (grammars: [ grammars.tree-sitter-ron ]))
           ]);
 
-          src = lib.cleanSource ./.;
+          src = self; # Nix filters `.git` and untracked paths.
 
           ron-ts-mode = melpaBuild {
             pname = "ron-ts-mode";
-            # Nix rejects versions Nixpkgs cannot parse.  Convention for
-            # unreleased packages: <upstream-version>-unstable-<YYYY-MM-DD>,
-            # where the date is the last commit touching the source.
-            version = "0.1.0-unstable-2026-08-03";
-
             inherit src;
+            version = "0-unstable-${date}";
 
-            # melpaBuild byte-compiles with this Emacs and propagates it,
-            # so the installed package finds the grammar in its closure.
+            # melpaBuild propagates this Emacs, so the grammar ships too.
             emacs = emacsWithGrammars;
 
-            # Byte-compilation warnings fail the build.  Keep it on: it is
-            # the cheapest lint the package will ever get.
             turnCompilationWarningToError = true;
 
             meta = {
@@ -91,17 +90,17 @@
           packages.ron-ts-mode = ron-ts-mode;
           packages.default = config.packages.ron-ts-mode;
 
-          # `nix flake check` builds packages.ron-ts-mode, which already
-          # byte-compiles everything.  This additionally runs the ERT suite
-          # against the *installed* package, so the check exercises the
-          # artifact that ships, not the checkout.
+          # Runs the ERT suite against the *installed* package, not the
+          # checkout.  The package build already byte-compiles.
           checks.default =
             pkgs.runCommand "ron-ts-mode-ert"
               {
-                nativeBuildInputs = [ emacsWithGrammars ];
+                nativeBuildInputs = [
+                  emacsWithGrammars
+                  pkgs.writableTmpDirAsHomeHook
+                ];
               }
               ''
-                export HOME=$TMPDIR
                 emacs --batch \
                   -L ${config.packages.ron-ts-mode}/share/emacs/site-lisp/elpa/ron-ts-mode-* \
                   -l ${src}/ron-ts-mode-tests.el \
@@ -109,14 +108,12 @@
                 touch $out
               '';
 
-          # Interactive hacking: a real Emacs with the grammar available so
-          # the mode activates without the network-based grammar install.
+          # No network-based grammar install needed.
           devShells.default = pkgs.mkShell {
             packages = [ emacsWithGrammars ];
           };
 
-          # Only Nix files exist in this repo; the Elisp has no formatter
-          # in the house style, so treefmt only runs nixfmt.
+          # The Elisp has no house-style formatter.
           treefmt.programs.nixfmt.enable = true;
         };
     };
